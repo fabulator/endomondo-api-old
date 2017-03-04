@@ -1,0 +1,22 @@
+{
+    "name": "fabulator/endomondo-api-old",
+    "description": "Endomondo old API.",
+    "authors": [
+        {
+            "name": "Michal Ozogán",
+            "email": "michal@ozogan.eu"
+        }
+    ],
+    "repositories": [{
+      "type": "vcs",
+      "url": "git://github.com/fabulator/endomondo-api-old-base.git"
+    }],
+	"require": {
+		"PHP" : ">=5.5",
+		"guzzlehttp/guzzle": "~6.0",
+        "fabulator/endomondo-api-old-base": "dev-master"
+	},
+	"autoload": {
+		"psr-0": { "Fabulator": "lib/" }
+	}
+}
