@@ -116,6 +116,7 @@ class EndomondoOldAPI extends EndomondoOldAPIBase
     public function createWorkout(Workout $workout)
     {
         $response = $this->request('/mobile/track', [
+            'workoutId' => '-' . $this->bigRandomNumber(16),
             'duration' => $workout->getDuration(),
             'sport' => $workout->getTypeId(),
             'extendedResponse' => 'true',
