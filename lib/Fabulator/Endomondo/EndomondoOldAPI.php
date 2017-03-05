@@ -21,13 +21,13 @@ class EndomondoOldAPI extends EndomondoOldAPIBase
      * @param string $username endomondo username
      * @param string $password password for user
      * @return array Data that contain action, authToken, measure, displayName, userId, facebookConnected and secureToken
-     * @throws EndomondoException when credentials are wrong
+     * @throws EndomondoOldApiException when credentials are wrong
      */
     public function requestAuthToken($username, $password) {
         $response = parent::requestAuthToken($username, $password);
 
         if ($response === 'USER_UNKNOWN') {
-            throw new EndomondoException('Wrong username or password.');
+            throw new EndomondoOldApiException('Wrong username or password.');
         }
 
         $this->setAccessToken($response['authToken']);
@@ -68,7 +68,13 @@ class EndomondoOldAPI extends EndomondoOldAPIBase
             return $data;
         }
 
-        return json_decode($responseBody, true);
+        $data = json_decode($responseBody, true);
+
+        if (isset($data['error'])) {
+            throw new EndomondoOldApiException('Api error: ' . $data['error']['type']);
+        }
+
+        return $data;
     }
 
     /**
@@ -79,7 +85,7 @@ class EndomondoOldAPI extends EndomondoOldAPIBase
      */
     public function getWorkout($id)
     {
-        return WorkoutFactory::parseOldEndomondoApi($this->request('/mobile/api/workout/get', [
+        return OldApiParser::parseWorkout($this->request('/mobile/api/workout/get', [
             'fields' => 'basic,points,pictures,tagged_users,points,playlist,interval',
             'workoutId' => $id,
         ]));
@@ -111,7 +117,7 @@ class EndomondoOldAPI extends EndomondoOldAPIBase
      *
      * @param Workout $workout
      * @return Workout
-     * @throws EndomondoException when it fails to create workout
+     * @throws EndomondoOldApiException when it fails to create workout
      */
     public function createWorkout(Workout $workout)
     {
@@ -124,7 +130,7 @@ class EndomondoOldAPI extends EndomondoOldAPIBase
         ], $workout->getPointsAsString());
 
         if (!isset($response['workout.id'])) {
-            throw new EndomondoException('Workout create failed.');
+            throw new EndomondoOldApiException('Workout create failed.');
         }
 
         $workout->setId($response['workout.id']);
