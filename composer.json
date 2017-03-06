@@ -16,7 +16,6 @@
     }],
 	"require": {
 		"PHP" : ">=5.5",
-		"guzzlehttp/guzzle": "~6.0",
         "fabulator/endomondo-api-old-base": "dev-master",
         "fabulator/endomondo-workouts": "dev-master"
 	},
