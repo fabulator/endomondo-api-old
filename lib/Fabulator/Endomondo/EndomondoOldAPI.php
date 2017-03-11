@@ -2,8 +2,29 @@
 
 namespace Fabulator\Endomondo;
 
+use Psr\Http\Message\ResponseInterface;
+use GuzzleHttp\Exception\ClientException;
+
+/**
+ * Class EndomondoOldAPI
+ * @package Fabulator\Endomondo
+ */
 class EndomondoOldAPI extends EndomondoOldAPIBase
 {
+
+    const GET_WORKOUT_ENDPOINT = '/mobile/api/workout/get';
+    const GET_WORKOUTS_ENDPOINT = '/mobile/api/workout/list';
+    const CREATE_WORKOUT_ENDPOINT = '/mobile/track';
+    const UPDATE_WORKOUT_ENDPOINT = '/mobile/api/workout/post';
+    const DEFAULT_WORKOUT_FIELDS = [
+        'basic',
+        'points',
+        'pictures',
+        'tagged_users',
+        'points',
+        'playlist',
+        'interval',
+    ];
 
     /**
      * @var string
@@ -25,36 +46,31 @@ class EndomondoOldAPI extends EndomondoOldAPIBase
      */
     public function requestAuthToken($username, $password) {
         $response = parent::requestAuthToken($username, $password);
+        $data = $this->decodeResponse($response);
 
-        if ($response === 'USER_UNKNOWN') {
+        if (count($data) === 0) {
             throw new EndomondoOldApiException('Wrong username or password.');
         }
 
-        $this->setAccessToken($response['authToken']);
-        $this->setUserId($response['userId']);
+        $this->setAccessToken($data['authToken']);
+        $this->setUserId($data['userId']);
 
-        return $response;
+        return $data;
     }
 
     /**
-     * Request Old Endomondo API.
+     * Decode response from Endomondo and convert it to array.
      *
-     * @param string $endpoint
-     * @param array $options
-     * @param string $body
-     * @return array
+     * @param ResponseInterface $response
+     * @return array response from endomondo
+     * @throws EndomondoOldApiException when request to endomondo fail
      */
-    public function request($endpoint, $options = [], $body = '')
+    public function decodeResponse(ResponseInterface $response)
     {
-        if ($this->getAcessToken()) {
-            $options['authToken'] = $this->getAcessToken();
-        }
-
-        $response = parent::request($endpoint, $options, gzencode($body));
         $responseBody = trim((string) $response->getBody());
 
         if ($response->getHeader('Content-Type')[0] === 'text/plain;charset=UTF-8') {
-            $lines = explode("\n", $response->getBody());
+            $lines = explode("\n", $responseBody);
             $data = [];
 
             // parse endomondo text response
@@ -78,15 +94,38 @@ class EndomondoOldAPI extends EndomondoOldAPIBase
     }
 
     /**
+     * Request Old Endomondo API.
+     *
+     * @param string $endpoint
+     * @param array $options
+     * @param string $body
+     * @return array
+     * @throws EndomondoOldApiException when api request fail
+     */
+    public function request($endpoint, $options = [], $body = '')
+    {
+        if ($this->getAcessToken()) {
+            $options['authToken'] = $this->getAcessToken();
+        }
+
+        try {
+            return $this->decodeResponse(parent::send($endpoint, $options, gzencode($body)));
+        } catch(ClientException $e) {
+            throw new EndomondoOldApiException($e->getMessage(), $e->getCode(), $e);
+        }
+    }
+
+    /**
      * Get single Endomondo workout.
      *
      * @param $id string
+     * @param array $fields list of requested fields
      * @return Workout
      */
-    public function getWorkout($id)
+    public function getWorkout($id, $fields = self::DEFAULT_WORKOUT_FIELDS)
     {
-        return OldApiParser::parseWorkout($this->request('/mobile/api/workout/get', [
-            'fields' => 'basic,points,pictures,tagged_users,points,playlist,interval',
+        return OldApiParser::parseWorkout($this->request(self::GET_WORKOUT_ENDPOINT, [
+            'fields' => join($fields, ','),
             'workoutId' => $id,
         ]));
     }
@@ -95,18 +134,19 @@ class EndomondoOldAPI extends EndomondoOldAPIBase
      * Get list of last workouts
      *
      * @param int $limit
-     * @return array<Workout>
+     * @param array $fields list of requested fields
+     * @return Workout[]
      */
-    public function getWorkouts($limit = 10)
+    public function getWorkouts($limit = 10, $fields = self::DEFAULT_WORKOUT_FIELDS)
     {
         $workouts = [];
-        $response = $this->request('/mobile/api/workout/list', [
-            'fields' => 'basic,pictures,tagged_users,points,playlist,interval',
+        $response = $this->request(self::GET_WORKOUTS_ENDPOINT, [
+            'fields' => join(',', $fields),
             'maxResults' => $limit
         ]);
 
         foreach ($response['data'] as $workout) {
-            $workouts[] = WorkoutFactory::parseOldEndomondoApi($workout);
+            $workouts[] = OldApiParser::parseWorkout($workout);
         }
 
         return $workouts;
@@ -121,7 +161,7 @@ class EndomondoOldAPI extends EndomondoOldAPIBase
      */
     public function createWorkout(Workout $workout)
     {
-        $response = $this->request('/mobile/track', [
+        $response = $this->request(self::CREATE_WORKOUT_ENDPOINT, [
             'workoutId' => '-' . $this->bigRandomNumber(16),
             'duration' => $workout->getDuration(),
             'sport' => $workout->getTypeId(),
@@ -146,18 +186,19 @@ class EndomondoOldAPI extends EndomondoOldAPIBase
      */
     public function updateWorkout(Workout $workout)
     {
+        $utc = new \DateTimeZone('UTC');
+        $timeFormat = 'Y-m-d H:i:s \U\T\C';
+        $start = (clone $workout->getStart())->setTimezone($utc)->format($timeFormat);
+        $end = (clone $workout->getEnd())->setTimezone($utc)->format($timeFormat);
+
         $data = [
             'duration' => $workout->getDuration(),
             'sport' => $workout->getTypeId(),
             'distance' => $workout->getDistance(),
+            'start_time' => $start,
+            'end_time' => $end,
             'extendedResponse' => 'true',
             'gzip' => 'true',
-            'start_time' => $workout->getStart()
-                ->setTimezone(new \DateTimeZone('UTC'))
-                ->format('Y-m-d H:i:s \U\T\C'),
-            'end_time' => $workout->getEnd()
-                ->setTimezone(new \DateTimeZone('UTC'))
-                ->format('Y-m-d H:i:s \U\T\C'),
         ];
 
         if ($workout->getCalories() !== null) {
@@ -176,7 +217,7 @@ class EndomondoOldAPI extends EndomondoOldAPIBase
             $data['privacy_workout'] = $workout->getWorkoutPrivacy();
         }
 
-        $this->request('/mobile/api/workout/post', [
+        $this->request(self::UPDATE_WORKOUT_ENDPOINT, [
             'workoutId' => $workout->getId(),
             'userId' => $this->getUserId(),
             'gzip' => 'true',

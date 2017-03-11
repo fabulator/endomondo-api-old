@@ -5,7 +5,7 @@ namespace Fabulator\Endomondo;
 final class OldApiParser {
 
     /**
-     * Parse data from old Endomondo API.
+     * Parse point data from old Endomondo API.
      *
      * @param $source array
      * @return Point
