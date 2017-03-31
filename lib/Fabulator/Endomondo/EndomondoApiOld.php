@@ -9,7 +9,7 @@ use GuzzleHttp\Exception\ClientException;
  * Class EndomondoOldAPI
  * @package Fabulator\Endomondo
  */
-class EndomondoOldAPI extends EndomondoOldAPIBase
+class EndomondoApiOld extends EndomondoOldAPIBase
 {
 
     const GET_WORKOUT_ENDPOINT = '/mobile/api/workout/get';
@@ -42,14 +42,14 @@ class EndomondoOldAPI extends EndomondoOldAPIBase
      * @param string $username endomondo username
      * @param string $password password for user
      * @return array Data that contain action, authToken, measure, displayName, userId, facebookConnected and secureToken
-     * @throws EndomondoOldApiException when credentials are wrong
+     * @throws EndomondoApiOldException when credentials are wrong
      */
     public function requestAuthToken($username, $password) {
         $response = parent::requestAuthToken($username, $password);
         $data = $this->decodeResponse($response);
 
         if (count($data) === 0) {
-            throw new EndomondoOldApiException('Wrong username or password.');
+            throw new EndomondoApiOldException('Wrong username or password.');
         }
 
         $this->setAccessToken($data['authToken']);
@@ -63,9 +63,9 @@ class EndomondoOldAPI extends EndomondoOldAPIBase
      *
      * @param ResponseInterface $response
      * @return array response from endomondo
-     * @throws EndomondoOldApiException when request to endomondo fail
+     * @throws EndomondoApiOldException when request to endomondo fail
      */
-    public function decodeResponse(ResponseInterface $response)
+    private function decodeResponse(ResponseInterface $response)
     {
         $responseBody = trim((string) $response->getBody());
 
@@ -87,7 +87,7 @@ class EndomondoOldAPI extends EndomondoOldAPIBase
         $data = json_decode($responseBody, true);
 
         if (isset($data['error'])) {
-            throw new EndomondoOldApiException('Api error: ' . $data['error']['type']);
+            throw new EndomondoApiOldException('Api error: ' . $data['error']['type']);
         }
 
         return $data;
@@ -100,7 +100,7 @@ class EndomondoOldAPI extends EndomondoOldAPIBase
      * @param array $options
      * @param string $body
      * @return array
-     * @throws EndomondoOldApiException when api request fail
+     * @throws EndomondoApiOldException when api request fail
      */
     public function request($endpoint, $options = [], $body = '')
     {
@@ -111,7 +111,7 @@ class EndomondoOldAPI extends EndomondoOldAPIBase
         try {
             return $this->decodeResponse(parent::send($endpoint, $options, gzencode($body)));
         } catch(ClientException $e) {
-            throw new EndomondoOldApiException($e->getMessage(), $e->getCode(), $e);
+            throw new EndomondoApiOldException($e->getMessage(), $e->getCode(), $e);
         }
     }
 
@@ -142,7 +142,7 @@ class EndomondoOldAPI extends EndomondoOldAPIBase
         $workouts = [];
         $response = $this->request(self::GET_WORKOUTS_ENDPOINT, [
             'fields' => join(',', $fields),
-            'maxResults' => $limit
+            'maxResults' => $limit,
         ]);
 
         foreach ($response['data'] as $workout) {
@@ -157,7 +157,7 @@ class EndomondoOldAPI extends EndomondoOldAPIBase
      *
      * @param Workout $workout
      * @return Workout
-     * @throws EndomondoOldApiException when it fails to create workout
+     * @throws EndomondoApiOldException when it fails to create workout
      */
     public function createWorkout(Workout $workout)
     {
@@ -170,7 +170,7 @@ class EndomondoOldAPI extends EndomondoOldAPIBase
         ], $workout->getPointsAsString());
 
         if (!isset($response['workout.id'])) {
-            throw new EndomondoOldApiException('Workout create failed.');
+            throw new EndomondoApiOldException('Workout create failed.');
         }
 
         $workout->setId($response['workout.id']);
@@ -183,20 +183,23 @@ class EndomondoOldAPI extends EndomondoOldAPIBase
      *
      * @param Workout $workout
      * @return Workout
+     * @throws EndomondoApiOldException when id of workout is not set
      */
     public function updateWorkout(Workout $workout)
     {
+        if (!$workout->getId()) {
+            throw new EndomondoApiOldException('You cannot edit workout without knowing its ID.');
+        }
+
         $utc = new \DateTimeZone('UTC');
         $timeFormat = 'Y-m-d H:i:s \U\T\C';
-        $start = (clone $workout->getStart())->setTimezone($utc)->format($timeFormat);
-        $end = (clone $workout->getEnd())->setTimezone($utc)->format($timeFormat);
 
         $data = [
             'duration' => $workout->getDuration(),
             'sport' => $workout->getTypeId(),
             'distance' => $workout->getDistance(),
-            'start_time' => $start,
-            'end_time' => $end,
+            'start_time' => $workout->getStart()->setTimezone($utc)->format($timeFormat),
+            'end_time' => $workout->getEnd()->setTimezone($utc)->format($timeFormat),
             'extendedResponse' => 'true',
             'gzip' => 'true',
         ];
