@@ -69,7 +69,6 @@ final class OldApiParser {
             ->setDuration($source['duration'])
             ->setStart(new \DateTime($source['start_time']))
             ->setDistance($source['distance'])
-            ->setNotes($source['notes'])
             ->setMapPrivacy($source['privacy_map'])
             ->setWorkoutPrivacy($source['privacy_workout']);
 
@@ -95,6 +94,10 @@ final class OldApiParser {
 
         if (isset($source['heart_rate_max'])) {
             $workout->setMaxHeartRate($source['heart_rate_max']);
+        }
+
+        if (isset($source['notes'])) {
+            $workout->setNotes($source['notes']);
         }
 
         return $workout;
