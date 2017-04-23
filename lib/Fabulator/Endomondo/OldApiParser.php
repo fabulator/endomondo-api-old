@@ -80,7 +80,7 @@ final class OldApiParser {
             $workout->setCalories($source['calories']);
         }
 
-        if ($source['points']) {
+        if (isset($source['points'])) {
             $points = [];
             foreach ($source['points'] as $point) {
                 $points[] = OldApiParser::parsePoint($point);
