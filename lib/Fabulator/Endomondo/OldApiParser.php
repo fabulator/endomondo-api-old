@@ -68,7 +68,6 @@ final class OldApiParser {
             ->setTypeId($source['sport'])
             ->setDuration($source['duration'])
             ->setStart(new \DateTime($source['start_time']))
-            ->setDistance($source['distance'])
             ->setMapPrivacy($source['privacy_map'])
             ->setWorkoutPrivacy($source['privacy_workout']);
 
@@ -78,6 +77,10 @@ final class OldApiParser {
 
         if ($source['calories']) {
             $workout->setCalories($source['calories']);
+        }
+
+        if ($source['distance']) {
+            $workout->setDistance($source['distance']);
         }
 
         if (isset($source['points'])) {
